@@ -8,7 +8,7 @@ Lightweight FEC Transmission Module for Enhanced Network Reliability
 # 一套用于网络传输的FEC Framework
 本项目的主要目的是开发一款轻量级、高效、强健的前向纠错（FEC）传输模块。该模块专为提高网络通信中的数据可靠性和完整性而设计，尤其适用于易于发生数据包丢失和传输错误的环境。通过实施基于Reed-Solomon编码的FEC方案，项目旨在显著减少数据包丢失的影响，从而提高在各种网络条件下的整体性能和可靠性。
 
-## 特点
+## 技术特性
 
 **😊具有一定的协议封装, 应用层在发送前, 可将数据交由FEC Framework. FEC Framework会完成协议头的填充.**
 
@@ -27,8 +27,10 @@ Lightweight FEC Transmission Module for Enhanced Network Reliability
 ❓m: Parity Packet数量, 生成的校验数据包的数量  
 ❓n: 每个FEC Block包含的数据包数量，等于k + m（n）。
 
-## 发送端流程
+## 使用概览
+
+### 发送端流程
 ![发送端流程](/doc/image/sender_op.jpeg)
 
-## 接收端流程
+### 接收端流程
 ![接收端流程](/doc/image/recver_op.jpg)
