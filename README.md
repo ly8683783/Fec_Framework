@@ -27,5 +27,8 @@ Lightweight FEC Transmission Module for Enhanced Network Reliability
 ❓m: Parity Packet数量, 生成的校验数据包的数量  
 ❓n: 每个FEC Block包含的数据包数量，等于k + m（n）。
 
-## 
-  
+## 发送端流程
+![发送端流程](/doc/image/sender_op.jpeg)
+
+## 接收端流程
+![接收端流程](/doc/image/recver_op.jpg)
