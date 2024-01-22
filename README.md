@@ -1,5 +1,5 @@
-# Fec Framework
-Lightweight FEC Transmission Module for Enhanced Network Reliability
+# FEC Framework
+Lightweight FEC(Forward Error Correction) Module for Enhanced Network Reliability
 
 ![Language](https://img.shields.io/badge/language-c-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-yellow)
