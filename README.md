@@ -26,9 +26,9 @@ FEC(前向纠错)通过在传输过程中增加冗余数据来提高数据完整
 
 ## FEC Framework参数说明
 
-❓k: Source Packet数量, 原始数据包的数量。  
-❓m: Parity Packet数量, 生成的校验数据包的数量  
-❓n: 每个FEC Block包含的数据包数量，等于k + m（n）。
+❓**k**: Source Packet数量, 原始数据包的数量。  
+❓**m**: Parity Packet数量, 生成的校验数据包的数量  
+❓**n**: 每个FEC Block包含的数据包数量，等于k + m（n）。
 
 ## 使用概览
 
