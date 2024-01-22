@@ -218,7 +218,7 @@ fec_framework_decode(fec_info_t *fec_info, struct fec_buf *ubuf, struct fec_buf 
       
    2. **Emulate send start**
       
-      模拟发送5个应用层数据包, id分别为0, 1, 2, 3, 4. ５包后, 跟随了2包冗余数据(**PARITY**)
+      模拟发送5个应用层数据包, id分别为0, 1, 2, 3, 4. 注意在处理５包应用数据后, FEC framework生成了2包冗余数据(**PARITY**)
       
    3. **Emulate out of order start**
       
@@ -226,8 +226,8 @@ fec_framework_decode(fec_info_t *fec_info, struct fec_buf *ubuf, struct fec_buf 
       
    4. **Emulate lost start**
       
-      模拟数据丢失, id为4的数据包丢失, 数据后票房为"(lost)"
+      模拟数据丢失, 这里id为4的数据包丢失, 数据后标记为"(lost)"
       
    5. **Emulate recv start**
        
-      模拟接收端收数, id为４的数据包成功被恢复.
+      模拟接收端, id为４的数据包成功被恢复.
