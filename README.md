@@ -1,4 +1,4 @@
-# FEC_for_Lossy_Networks
+# Fec Framework
 Lightweight FEC Transmission Module for Enhanced Network Reliability
 
 ![Language](https://img.shields.io/badge/language-c-brightgreen)
