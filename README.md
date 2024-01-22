@@ -26,7 +26,7 @@ FEC(前向纠错)通过在传输过程中增加冗余数据来提高数据完整
   - 即便一组FEC数据块以乱序形式到达接收端，FEC Framework依然有能力恢复出丢失的数据，增强了数据传输过程中的鲁棒性。
 
 **😊采用Reed-Solomon编码方案：**  
-  - FEC Framework采用的是Reed-Solomon编码，一种广泛应用且功能强大的FEC算法, 增强数据的可靠性。
+  - FEC Framework采用的是Reed-Solomon编码库(原作者:Luigi Rizzo ,luigi@iet.unipi.it)，一种广泛应用且功能强大的FEC算法, 增强数据的可靠性。
 
 > [!TIP]
 > FEC Framework参数说明  
