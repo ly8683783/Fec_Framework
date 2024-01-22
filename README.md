@@ -17,23 +17,22 @@ FEC(前向纠错)通过在传输过程中增加冗余数据来提高数据完整
   - 在发送或接收数据时，应用层可以将数据交给FEC Framework处理。FEC Framework将负责填充和解析协议头，确保数据的正确封装和解析。
 
 **😊动态冗余数据生成：**  
-  - FEC Framework每打包k个应用层数据，将自动生成m包冗余数据。应用层可以根据需要调整k和m的值，只要满足k >= 1且k+m <= 32的条件，就能灵活适应不同的数据传输需求。
+  - FEC Framework每打包**k**个应用层数据，将自动生成m包冗余数据。应用层可以根据需要调整k和m的值，只要满足**k >= 1**且**k+m <= 32**的条件，就能灵活适应不同的数据传输需求。
 
 **😊数据丢失后的恢复能力：**  
-  - FEC Framework将k+m个数据包组织成一组FEC数据块(block)。即使在这组数据中有多达m包的数据丢失，接收方也能依靠FEC Framework提供的信息来恢复丢失的数据。
+  - FEC Framework将**k+m**个数据包组织成一组FEC数据块(block)。即使在这组数据中有多达**m**包的数据丢失，接收方也能依靠FEC Framework提供的信息来恢复丢失的数据。
 
 **😊对乱序数据的处理能力：**  
   - 即便一组FEC数据块以乱序形式到达接收端，FEC Framework依然有能力恢复出丢失的数据，增强了数据传输过程中的鲁棒性。
 
 **😊采用Reed-Solomon编码方案：**  
-  - FEC框架采用的是Reed-Solomon编码，这是一种广泛应用且功能强大的FEC算法。它适用于多种通信应用，能有效增强数据的可靠性和稳定性。
+  - FEC Framework采用的是Reed-Solomon编码，这是一种广泛应用且功能强大的FEC算法。它适用于多种通信应用，能有效增强数据的可靠性和稳定性。
 
-
-## FEC Framework参数说明
-
-❓**k**: Source Packet数量, 原始数据包的数量。  
-❓**m**: Parity Packet数量, 生成的校验数据包的数量  
-❓**n**: 每个FEC Block包含的数据包数量，等于k + m（n）。
+> [!TIP]
+> FEC Framework参数说明  
+> ❓**k**: Source Packet数量, 经由FEC Framework封装后的原始数据包的数量。  
+> ❓**m**: Parity Packet数量, 经由FEC Framework生成的校验数据包的数量。  
+> ❓**n**: 每个FEC Block包含的数据包数量，等于k + m。
 
 ## 使用概览
 
@@ -105,7 +104,7 @@ IINT32
 fec_framework_decode(fec_info_t *fec_info, struct fec_buf *ubuf, struct fec_buf **out_ubuf, IINT32 *out_ubuf_count)
 ```
 - **功能描述**  
-  FEC框架的解码部分，主要用于FEC接收端。该函数的目的是处理接收到的FEC数据包（FDU），并尝试从中恢复原始应用层数据（ADU）。
+  FEC Framework的解码部分，主要用于FEC接收端。该函数的目的是处理接收到的FEC数据包（FDU），并尝试从中恢复原始应用层数据（ADU）。
   这个过程包括:  
   - 解析FEC头部;
   - 以及根据接收到的原始数据和冗余数据重建丢失的数据包。
