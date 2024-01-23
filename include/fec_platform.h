@@ -50,9 +50,6 @@
     #include <stdint.h>
     typedef uint32_t ISTDUINT32;
     typedef int32_t ISTDINT32;
-#elif defined(UDISCOVER_HR3010)
-    typedef unsigned int ISTDUINT32;
-    typedef int ISTDINT32;
 #else
     typedef unsigned long ISTDUINT32;
     typedef long ISTDINT32;
