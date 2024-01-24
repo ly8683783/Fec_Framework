@@ -8,6 +8,8 @@
 #include "fec_platform.h"
 #include "fec_scheme.h"
 
+#define FEC_FRAMEWORK_N_LIMIT 32
+
 static inline IUINT32 _fec_max_(IUINT32 a, IUINT32 b)
 {
     return a >= b ? a : b;
@@ -96,7 +98,19 @@ fec_framework_init(IUINT8 k, IUINT8 n)
     IINT32 i;
     fec_info_t *fec_info;
 
-    fec_info = calloc(1, sizeof(fec_info_t));
+    if (n == 0 || n > FEC_FRAMEWORK_N_LIMIT) {
+        FEC_LOGE("param err");
+        return NULL;
+    }
+    if (k == 0 || k >= n) {
+        FEC_LOGE("param err");
+        return NULL;
+    }
+
+    if ((fec_info = calloc(1, sizeof(fec_info_t))) == NULL) {
+        FEC_LOGE("MEM err");
+        return NULL;
+    }
 
     if ((fec_info->code = fec_new(k, n)) == NULL) {
         FEC_LOGE("fec_new ret NULL");
