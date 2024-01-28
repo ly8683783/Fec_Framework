@@ -31,11 +31,11 @@ typedef struct fec_adu_info {
 
 typedef struct {
     fec_header_t fec_header;
-    IUINT8 processed;
     fec_adu_info_t *adu_info;
 } fec_symbol_t;
 
-typedef struct {
+typedef struct fec_block {
+    struct fec_block *next;
     IUINT16 seq_id;
     IUINT16 seq_block_start;
     IUINT32 symbol_set;
@@ -46,16 +46,24 @@ typedef struct {
     IUINT8  parity;
 } fec_block_t;
 
+typedef struct fec_block_info {
+    IUINT8 block_count;
+    IUINT8 block_max;
+    IUINT16 rfu;
+    fec_block_t *fec_block_list;
+} fec_block_info_t;
+
 typedef struct {
-    IUINT16 k;
-    IUINT16 n;
+    IUINT8 k;
+    IUINT8 n;
+    IUINT16 rfu;
     void *code;
     IUINT32 expect_symbol_set;
-    fec_block_t fec_w_block;
-    fec_block_t fec_r_block;
+    fec_block_info_t fec_w_block;
+    fec_block_info_t fec_r_block;
 } fec_info_t;
 
-fec_info_t * fec_framework_init(IUINT8 k, IUINT8 n);
+fec_info_t *fec_framework_init(IUINT8 k, IUINT8 n, IUINT8 block_max);
 
 void fec_framework_deinit(fec_info_t *fec_info);
 
@@ -65,4 +73,11 @@ fec_framework_encode(fec_info_t *fec_info, struct fec_buf *ubuf, struct fec_buf 
 IINT32
 fec_framework_decode(fec_info_t *fec_info, struct fec_buf *ubuf, struct fec_buf **out_ubuf, IINT32 *out_ubuf_count);
 
+fec_block_t *fec_block_new(IUINT8 n, IUINT16 group_id);
+
+fec_block_t *fec_framework_get_block(fec_block_info_t *fec_block_info, IUINT16 group_id, IUINT8 n);
+
+IINT32 fec_block_info_init(fec_block_info_t *fec_block, IUINT8 k, IUINT8 n, IUINT8 block_max);
+
+void fec_block_info_deinit(fec_block_info_t *fec_block, IUINT8 n, IINT8 *act);
 #endif

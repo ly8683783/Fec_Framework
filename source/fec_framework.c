@@ -50,22 +50,36 @@ IINT32 rs_decode(void *code, void *data[], IINT32 size, IUINT16 k, IUINT16 n)
 }
 
 IINT32
-fec_block_init(fec_block_t *fec_block, IUINT16 k, IUINT16 n)
+fec_block_info_init(fec_block_info_t *fec_block, IUINT8 k, IUINT8 n, IUINT8 block_max)
 {
-    fec_symbol_t *symbol;
+    fec_block->block_count = 0;
+    fec_block->block_max = block_max;
+    fec_block->fec_block_list = NULL;
 
-    fec_block->symbol = calloc(n, sizeof(fec_symbol_t));
-    if (fec_block->symbol == NULL) {
-        return -1;
-    }
-
-    fec_block->seq_id = 0;
-    fec_block->group_id = 0;
     return 0;
 }
 
+fec_block_t *fec_block_new(IUINT8 n, IUINT16 group_id)
+{
+    fec_block_t *fec_block;
+
+    if ((fec_block = calloc(1, sizeof(fec_block_t))) == NULL) {
+        return NULL;
+    }
+
+    fec_block->symbol = calloc(n, sizeof(fec_symbol_t));
+    if (fec_block->symbol == NULL) {
+        return NULL;
+    }
+
+    fec_block->seq_id = 65534;
+    fec_block->group_id = group_id;
+
+    return fec_block;
+}
+
 void
-fec_block_reset(fec_block_t *fec_block, IUINT16 group_id, IUINT8 k, IUINT8 n)
+fec_block_reset(fec_block_t *fec_block, IUINT8 n)
 {
     IINT32 i;
 
@@ -79,21 +93,33 @@ fec_block_reset(fec_block_t *fec_block, IUINT16 group_id, IUINT8 k, IUINT8 n)
     fec_block->count = 0;
     fec_block->symbol_set = 0;
     fec_block->parity = 0;
-    fec_block->group_id = group_id;
+    fec_block->group_id = 0;
     memset(fec_block->symbol, 0, sizeof(fec_symbol_t) * n);
 }
 
 void
-fec_block_deinit(fec_block_t *fec_block, IUINT16 k, IUINT16 n)
+fec_block_del(fec_block_t *fec_block, IUINT8 n, IINT8 *act)
 {
-    IINT32 i;
-
-    fec_block_reset(fec_block, 0, k, n);
+    FEC_LOGD("%s del group_id %d", act, fec_block->group_id);
+    fec_block_reset(fec_block, n);
     free(fec_block->symbol);
+    free(fec_block);
+}
+
+void
+fec_block_info_deinit(fec_block_info_t *fec_block, IUINT8 n, IINT8 *act)
+{
+    fec_block_t **fb_node = &fec_block->fec_block_list, *tmp_node;
+
+    while (*fb_node) {
+        tmp_node = *fb_node;
+        *fb_node = (*fb_node)->next;
+        fec_block_del(tmp_node, n, act);
+    }
 }
 
 fec_info_t *
-fec_framework_init(IUINT8 k, IUINT8 n)
+fec_framework_init(IUINT8 k, IUINT8 n, IUINT8 block_max)
 {
     IINT32 i;
     fec_info_t *fec_info;
@@ -119,8 +145,12 @@ fec_framework_init(IUINT8 k, IUINT8 n)
     fec_info->k = k;
     fec_info->n = n;
     fec_info->expect_symbol_set = (1 << k) - 1;
-    fec_block_init(&fec_info->fec_w_block, k, n);
-    fec_block_init(&fec_info->fec_r_block, k, n);
+
+    fec_block_info_init(&fec_info->fec_w_block, k, n, 1);
+    if ((fec_info->fec_w_block.fec_block_list = fec_block_new(fec_info->n, 0)) == NULL)
+        return NULL;
+
+    fec_block_info_init(&fec_info->fec_r_block, k, n, block_max);
 
     return fec_info;
 }
@@ -128,9 +158,8 @@ fec_framework_init(IUINT8 k, IUINT8 n)
 void
 fec_framework_deinit(fec_info_t *fec_info)
 {
-    fec_block_deinit(&fec_info->fec_w_block, fec_info->k, fec_info->n);
-    fec_block_deinit(&fec_info->fec_r_block, fec_info->k, fec_info->n);
-    
+    fec_block_info_deinit(&fec_info->fec_w_block, fec_info->n, "W");
+    fec_block_info_deinit(&fec_info->fec_r_block, fec_info->n, "R");
     fec_free(fec_info->code);
     free(fec_info);
 }
@@ -221,7 +250,7 @@ fec_framework_encode(fec_info_t *fec_info, struct fec_buf *ubuf, struct fec_buf 
     fec_adu_info_t *adu_info;
 
     *out_ubuf_count = 0;
-    fec_w_block = &fec_info->fec_w_block;
+    fec_w_block = fec_info->fec_w_block.fec_block_list;
 
     buf_len = fec_buf_length(ubuf);
     fec_buf_len = sizeof(fec_adu_info_t) + buf_len;
@@ -306,6 +335,46 @@ fec_repair(fec_info_t *fec_info, fec_block_t *fec_r_block, struct fec_buf *out_u
     return 0;
 }
 
+fec_block_t *fec_framework_get_block(fec_block_info_t *fec_block_info, IUINT16 group_id, IUINT8 n)
+{
+    IINT32 i = 0;
+    IINT16 diff_result = 0;
+    fec_block_t **fb_node = &fec_block_info->fec_block_list, *tmp_node, *fb_new, *ret = NULL;
+
+    while (*fb_node) {
+        diff_result = fec_diff(group_id, (*fb_node)->group_id);
+        if (diff_result > 0) {
+            break;
+        } else if (diff_result == 0) {
+            return *fb_node;
+        }
+        fb_node = &(*fb_node)->next;
+        i++;
+    }
+    if (i >= fec_block_info->block_max)
+        return NULL;
+    
+    if ((fb_new = fec_block_new(n, group_id)) == NULL)
+        return NULL;
+    fb_new->next = *fb_node;
+    ret = *fb_node = fb_new;
+    fec_block_info->block_count++;
+
+    if (fec_block_info->block_count > fec_block_info->block_max) {
+        while (*fb_node && i++ < fec_block_info->block_max) {
+            fb_node = &(*fb_node)->next;
+        }
+        while (*fb_node) {
+            tmp_node = *fb_node;
+            *fb_node = (*fb_node)->next;
+            fec_block_del(tmp_node, n, "R");
+            fec_block_info->block_count--;
+        }
+    }
+
+    return ret;
+}
+
 IINT32
 fec_framework_decode(fec_info_t *fec_info, struct fec_buf *ubuf, struct fec_buf **out_ubuf, IINT32 *out_ubuf_count)
 {
@@ -319,55 +388,41 @@ fec_framework_decode(fec_info_t *fec_info, struct fec_buf *ubuf, struct fec_buf 
         return -1;
     }
 
-    fec_r_block = &fec_info->fec_r_block;
-
     fec_buf_pull_data(ubuf, &fec_header, sizeof(fec_header_t));
     fec_header.buf_size = ntohs(fec_header.buf_size);
     fec_header.group_id = ntohs(fec_header.group_id);
     fec_header.seq_id = ntohs(fec_header.seq_id);
 
-    *out_ubuf_count = 0;
-    *out_ubuf = calloc(fec_info->k, sizeof(struct fec_buf));
-    if (*out_ubuf == NULL) {
-        FEC_LOGE("MEM err");
-        if (fec_header.buf_type == UKCP_FEC_TYPE_SOURCE_PACKET) {
-            fec_buf_pull(ubuf, sizeof(fec_adu_info_t));
-            (*out_ubuf)[*out_ubuf_count] = *ubuf;
-            (*out_ubuf_count)++;
-        } else {
-            fec_buf_free(ubuf);
-        }
-        return 0;
-    }
-
-    ret = fec_diff(fec_header.group_id, fec_r_block->group_id);
-    if (ret < 0) {
-        if (fec_header.buf_type == UKCP_FEC_TYPE_SOURCE_PACKET) {
-            fec_buf_pull(ubuf, sizeof(fec_adu_info_t));
-            (*out_ubuf)[*out_ubuf_count] = *ubuf;
-            (*out_ubuf_count)++;
-        } else {
-            fec_buf_free(ubuf);
-        }
-        return 0;
-    }
-    if (ret > 0) {
-        fec_block_reset(fec_r_block, fec_header.group_id, fec_info->k, fec_info->n);
-    }
-
     if (fec_header.symbol_id >= fec_info->n)
         return -3;
 
-    if (fec_r_block->parity)
-        return -2;
+    *out_ubuf_count = 0;
+    *out_ubuf = calloc(fec_info->k, sizeof(struct fec_buf));
+    if (*out_ubuf == NULL) {
+        return -4;
+    }
 
-    if (fec_diff(fec_r_block->seq_id, fec_header.seq_id) < 0) {
-        fec_r_block->seq_id = fec_header.seq_id;
+    fec_r_block = fec_framework_get_block(&fec_info->fec_r_block, fec_header.group_id, fec_info->n);
+    if (fec_r_block == NULL) {
+        if (fec_header.buf_type == UKCP_FEC_TYPE_SOURCE_PACKET) {
+            fec_buf_pull(ubuf, sizeof(fec_adu_info_t));
+            (*out_ubuf)[*out_ubuf_count] = *ubuf;
+            (*out_ubuf_count)++;
+        } else {
+            fec_buf_free(ubuf);
+        }
+        return 0;
+    }
+
+    if (fec_r_block->parity) {
+        FEC_LOGE("R fec_header.seq_id %u dup(parity)", fec_header.seq_id);
+        return -2;
     }
 
     symbol_id = fec_header.symbol_id;
     if (fec_r_block->symbol[symbol_id].fec_header.buf_size != 0 &&
-                fec_header.symbol_id == fec_r_block->symbol[symbol_id].fec_header.symbol_id) {
+                fec_header.symbol_id == fec_r_block->symbol[symbol_id].fec_header.symbol_id &&
+                fec_header.seq_id == fec_r_block->symbol[symbol_id].fec_header.seq_id) {
         FEC_LOGE("R fec_header.seq_id %u dup", fec_header.seq_id);
         return -2;
     }
@@ -381,7 +436,6 @@ fec_framework_decode(fec_info_t *fec_info, struct fec_buf *ubuf, struct fec_buf 
     fec_r_block->symbol[symbol_id].fec_header.buf_type = fec_header.buf_type;
     fec_r_block->symbol[symbol_id].adu_info = calloc(1, fec_header.buf_size);
     memcpy(fec_r_block->symbol[symbol_id].adu_info, fec_buf_data(ubuf), fec_header.buf_size);
-    fec_r_block->symbol[symbol_id].processed = 1;
 
     if (fec_r_block->symbol[symbol_id].fec_header.buf_type == UKCP_FEC_TYPE_SOURCE_PACKET) {
         fec_buf_pull(ubuf, sizeof(fec_adu_info_t));

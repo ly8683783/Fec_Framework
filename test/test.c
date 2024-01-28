@@ -5,12 +5,14 @@
 #include "fec_framework.h"
 #include "fec_buf.h"
 
-#define TEST_COUNT      5
+#define TEST_COUNT      24
 #define TEST_DATA_LEN   200
 #define TEST_HEAD_LEN   20
 
-#define TEST_K  5
-#define TEST_N  7
+#define TEST_K  4
+#define TEST_N  5
+#define TEST_BLOCK_LIMIT   8
+
 
 #define TEST_ARRAY_COUNT (TEST_COUNT + TEST_COUNT / TEST_K * (TEST_N - TEST_K))
 
@@ -30,7 +32,7 @@ adu_printf_test(struct fec_buf *ubuf, IINT32 ubuf_count)
     IINT32 i;
 
     for (i = 0; i < ubuf_count; i++) {
-        FEC_LOGD("%d recver: len %d\t%s", i, fec_buf_length(&ubuf[i]), (IINT8 *)fec_buf_data(&ubuf[i]));
+        FEC_LOGD("%d recver: len %03d\t%s", i, fec_buf_length(&ubuf[i]), (IINT8 *)fec_buf_data(&ubuf[i]));
     }
     FEC_LOGD("++++++++++++");
 }
@@ -48,12 +50,12 @@ ubuf_printf_test(IINT8 *act, IINT8 * act2, struct fec_buf *ubuf)
 
     cur_seq_id = ntohs(fec_header_ptr->seq_id);
     if (act2) {
-        FEC_LOGD("%s seq %u len %d\t%s %s %s",
+        FEC_LOGD("%s seq %05u len %d\t%s %s %s",
                         act, cur_seq_id, ntohs(adu_info_ptr->len), 
                         fec_header_ptr->buf_type == UKCP_FEC_TYPE_PARITY_PACKET ? "PARITY" : (char *)adu_info_ptr->adu,
                         cur_seq_id == last_seq_id ? "(dup)" : " ", act2);
     } else {
-        FEC_LOGD("%s seq %u len %d\t%s %s",
+        FEC_LOGD("%s seq %05u len %d\t%s %s",
                 act, cur_seq_id, ntohs(adu_info_ptr->len),
                 fec_header_ptr->buf_type == UKCP_FEC_TYPE_PARITY_PACKET ? "PARITY": (char *)adu_info_ptr->adu,
                 cur_seq_id == last_seq_id ? "(dup)" : " ");
@@ -90,7 +92,7 @@ generate_string(IUINT16 seq, IUINT8 *test_buf, IINT32 buf_len)
         test_buf[i] = (rand() % 0x0a) + 0x30;
     }
 
-    sprintf(test_buf, "%u", seq);
+    sprintf(test_buf, "%03u", seq);
     test_buf[strlen(test_buf)] = ' ';
     
     return buf_len;
@@ -118,9 +120,9 @@ send_test(fec_info_t *fec_info, struct fec_buf *send_ubuf, IINT32 *send_ubuf_cou
         for (j = 0; j < out_ubuf_count; j++) {
 //            FEC_LOGD("M %d", *send_ubuf_count);
             fec_buf_copy(&send_ubuf[(*send_ubuf_count)++], &out_ubuf[j]);
-//            if (rand() % 8 == 0) {
-//                fec_buf_copy(&send_ubuf[(*send_ubuf_count)++], &out_ubuf[j]);
-//            }
+            if (rand() % 8 == 0) {
+                fec_buf_copy(&send_ubuf[(*send_ubuf_count)++], &out_ubuf[j]);
+            }
         }
         ubuf_free_test(out_ubuf, out_ubuf_count);
     }
@@ -164,7 +166,7 @@ out_of_order(struct fec_buf *ubuf, IINT32 count)
     int j, q;
 
     FEC_LOGD("\n-----------------------Emulate out of order start-------------------------------------");
-    for (i = 0; i < 1; i++) {
+    for (i = 0; i < count; i++) {
         j = rand() % (count);
         q = rand() % (count);
         struct fec_buf temp = ubuf[q];
@@ -174,26 +176,59 @@ out_of_order(struct fec_buf *ubuf, IINT32 count)
     }
 
     for (i = 0; i < count; i++) {
-        printf("%d ", i);
+        printf("%02d ", i);
         ubuf_printf_test("send:", NULL, &ubuf[i]);
     }
 }
+
+void
+fb_list_prt(fec_block_t **fec_block_list)
+{
+    fec_block_t **fb_node = fec_block_list, *tmp_node;
+    
+    while (*fb_node) {
+        FEC_LOGD("group_id = %d", (*fb_node)->group_id);
+        fb_node = &(*fb_node)->next;
+    }
+}
+
+//void
+//test_list(void)
+//{
+//    int i = 0;
+//    IUINT16 group_id;
+//    fec_block_info_t fec_block = {0};
+//    fec_block_t *fb_node, *ret;
+//
+//    fec_block_info_init(&fec_block, 4, 6, 10);
+//    for (i = 0; i < 25535; i++) {
+//        ret = fec_framework_get_block(&fec_block, group_id = rand()%32675, 6);
+//        if (ret)
+//            FEC_LOGD("ret->group_id = %u", ret->group_id);
+//        else {
+//            FEC_LOGD("ret = NULL group_id %u", group_id);
+//        }
+//    }
+//
+//    fb_list_prt(&fec_block.fec_block_list);
+//    fec_block_info_deinit(&fec_block, 6, "test_list");
+//}
 
 IINT32
 main(void)
 {
     IINT32 i;
     fec_info_t *fec_info;
-    struct fec_buf send_ubuf[TEST_ARRAY_COUNT] = {0};
+    struct fec_buf send_ubuf[TEST_ARRAY_COUNT * 2] = {0};
     IINT32 send_ubuf_count = 0;
-    IINT32 lost_index[TEST_ARRAY_COUNT] = {0};
+    IINT32 lost_index[TEST_ARRAY_COUNT * 2] = {0};
 
     struct fec_buf recv_ubuf_out[TEST_ARRAY_COUNT] = {0};
     IINT32 recv_ubuf_count_out = 0;
 
     srand(time(NULL));
 
-    fec_info = fec_framework_init(TEST_K, TEST_N);
+    fec_info = fec_framework_init(TEST_K, TEST_N, TEST_BLOCK_LIMIT);
     if (fec_info == NULL) {
         FEC_LOGD("fec_framework_init ret NULL"); 
         return -1;
@@ -212,8 +247,8 @@ main(void)
 
     FEC_LOGD("\n----------------------------Emulate lost start--------------------------------------");
     for (i = 0; i < send_ubuf_count; i++) {
-        printf("%d ", i);
-        if (rand() % 5 == 0) {
+        printf("%02d ", i);
+        if (rand() % 6 == 0) {
             ubuf_printf_test("send:", "(lost)", &send_ubuf[i]);
             lost_index[i] = 1;
         } else {
