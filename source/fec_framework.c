@@ -420,9 +420,7 @@ fec_framework_decode(fec_info_t *fec_info, struct fec_buf *ubuf, struct fec_buf 
     }
 
     symbol_id = fec_header.symbol_id;
-    if (fec_r_block->symbol[symbol_id].fec_header.buf_size != 0 &&
-                fec_header.symbol_id == fec_r_block->symbol[symbol_id].fec_header.symbol_id &&
-                fec_header.seq_id == fec_r_block->symbol[symbol_id].fec_header.seq_id) {
+    if (fec_r_block->symbol[symbol_id].adu_info) {
         FEC_LOGE("R fec_header.seq_id %u dup", fec_header.seq_id);
         return -2;
     }
