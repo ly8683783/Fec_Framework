@@ -46,7 +46,7 @@ FEC(前向纠错)通过在传输过程中增加冗余数据来提高数据完整
 # API说明
 ### 初始化
 ```C
-fec_info_t *fec_framework_init(IUINT8 k, IUINT8 n)
+fec_info_t *fec_framework_init(IUINT8 k, IUINT8 n, IUINT8 block_max)
 ```
 - **功能描述**  
 初始化fec framework
@@ -54,7 +54,8 @@ fec_info_t *fec_framework_init(IUINT8 k, IUINT8 n)
 - **参数说明**  
     - k: Source Packet数量, 原始数据包的数量。  
     - n: 每个FEC Block包含的数据包数量，等于k + m。  
-一旦确定了k与n后, fec framework在接受k包应用层数据时, 会生成m包冗余数据
+         一旦确定了k与n后, fec framework在接受k包应用层数据时, 会生成m包冗余数据
+    - block_max: 告知FEC Framework要缓存多少个FEC Block.　由于各种网络因素, 数据并不一定会按照发送端发送的顺序到达接收端, 为了增强"迟到"的数据包恢复, 应用层可以按需设置FEC Block的缓存数量(推荐值3).
 
 - **返回值**  
 成功返回fec_framework句柄, 失败返回NULL
