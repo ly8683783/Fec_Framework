@@ -35,6 +35,11 @@ FEC(前向纠错)通过在传输过程中增加冗余数据来提高数据完整
 > ❓**m**: Parity Packet数量, 经由FEC Framework生成的校验数据包的数量。  
 > ❓**n**: 每个FEC Block包含的数据包数量，等于k + m。
 
+###量化  
+
+本项目与KCP结合后, KCP的重传次数呈明显下降. 下图的纵轴代表KCP重传的次数, 网络单向丢包率为20%(C-->S loss 20%; S-->C loss 20%).  
+![量化图](/doc/image/fec_statistics.png)
+
 ## 使用概览
 
 ### 发送端流程
@@ -126,7 +131,7 @@ fec_framework_decode(fec_info_t *fec_info, struct fec_buf *ubuf, struct fec_buf 
     - 用途：提供了输出ADU数组的长度，帮助调用者了解有多少个数据包, 这也包含被成功恢复的数据包。
 
 - **返回值**
-  - 成功返回0, 失败返回-1
+  - 成功返回0, 失败返回<0
 
 # 调用流程
 1. 创建fec framework对象
