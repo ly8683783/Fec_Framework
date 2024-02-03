@@ -393,8 +393,10 @@ fec_framework_decode(fec_info_t *fec_info, struct fec_buf *ubuf, struct fec_buf 
     fec_header.group_id = ntohs(fec_header.group_id);
     fec_header.seq_id = ntohs(fec_header.seq_id);
 
-    if (fec_header.symbol_id >= fec_info->n)
+    if (fec_header.symbol_id >= fec_info->n) {
+        FEC_LOGD("R decode err. symbol_id %u out of range %u", fec_header.symbol_id, fec_info->n);
         return -3;
+    }
 
     *out_ubuf_count = 0;
     *out_ubuf = calloc(fec_info->k, sizeof(struct fec_buf));
@@ -410,18 +412,21 @@ fec_framework_decode(fec_info_t *fec_info, struct fec_buf *ubuf, struct fec_buf 
             (*out_ubuf_count)++;
         } else {
             fec_buf_free(ubuf);
+            free(*out_ubuf);
         }
         return 0;
     }
 
     if (fec_r_block->parity) {
         FEC_LOGE("R fec_header.seq_id %u dup(parity)", fec_header.seq_id);
+        free(*out_ubuf);
         return -2;
     }
 
     symbol_id = fec_header.symbol_id;
     if (fec_r_block->symbol[symbol_id].adu_info) {
         FEC_LOGE("R fec_header.seq_id %u dup", fec_header.seq_id);
+        free(*out_ubuf);
         return -2;
     }
 

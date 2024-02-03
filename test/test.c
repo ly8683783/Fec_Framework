@@ -145,6 +145,7 @@ recv_test(fec_info_t *fec_info,
             fec_buf_free(&recv_ubuf_in[i]);
             continue;
         }
+        recv_out_ubuf_count = 0;
         ret = fec_framework_decode(fec_info, &recv_ubuf_in[i], &recv_out_ubuf, &recv_out_ubuf_count);
         if (ret != 0) {
 //            FEC_LOGD("F %d %s line %d", i, (char *)fec_buf_data(&recv_ubuf_in[i]), __LINE__);
@@ -155,7 +156,8 @@ recv_test(fec_info_t *fec_info,
             fec_buf_copy(&recv_ubuf_out[(*recv_ubuf_count_out)++], &recv_out_ubuf[j]);
         }
 
-        ubuf_free_test(recv_out_ubuf, recv_out_ubuf_count);
+        if (ret == 0)
+            ubuf_free_test(recv_out_ubuf, recv_out_ubuf_count);
     }
 }
 
