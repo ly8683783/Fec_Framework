@@ -208,7 +208,8 @@ fec_redundancy_generator(fec_info_t *fec_info, fec_block_t *fec_w_block, struct 
         free(fec_w_block->symbol[i].adu_info);
         fec_w_block->symbol[i].adu_info = NULL;
     }
-    for (parity_symbol_index = i; i < fec_info->n; i++) {
+    parity_symbol_index = i;
+    for (i = fec_info->k; i < fec_info->n; i++) {
         data[i] = calloc(1, fec_w_block->max_len);
         if (data[i] == NULL) {
             ret = -1;
@@ -296,12 +297,19 @@ fec_repair(fec_info_t *fec_info, fec_block_t *fec_r_block, struct fec_buf *out_u
     IINT32 count = 0;
 
     data = calloc(1, sizeof(fec_adu_info_t *) * fec_info->n);
+    if (data == NULL) {
+        return -1;
+    }
     for (i = 0; i < fec_info->n; i++) {
         data[i] = NULL;
         if (fec_r_block->symbol[i].adu_info && fec_r_block->symbol[i].fec_header.buf_size) {
             IINT32 padding_len;
 
             data[i] = calloc(1, fec_r_block->max_len);
+            if (data[i] == NULL) {
+                ret = -1;
+                goto err;
+            }
             memcpy(data[i], fec_r_block->symbol[i].adu_info, fec_r_block->symbol[i].fec_header.buf_size);
             padding_len = fec_r_block->max_len - fec_r_block->symbol[i].fec_header.buf_size;
             if (padding_len > 0) {
@@ -325,6 +333,8 @@ fec_repair(fec_info_t *fec_info, fec_block_t *fec_r_block, struct fec_buf *out_u
             }
         }
     }
+
+err:
     for (i = 0; i < fec_info->n; i++) {
         if (data[i] != NULL) {
             free(data[i]);
@@ -332,7 +342,7 @@ fec_repair(fec_info_t *fec_info, fec_block_t *fec_r_block, struct fec_buf *out_u
     }
     free(data);
 
-    return 0;
+    return ret;
 }
 
 fec_block_t *fec_framework_get_block(fec_block_info_t *fec_block_info, IUINT16 group_id, IUINT8 n)
@@ -455,7 +465,10 @@ fec_framework_decode(fec_info_t *fec_info, struct fec_buf *ubuf, struct fec_buf 
         if ((fec_r_block->symbol_set & fec_info->expect_symbol_set) == fec_info->expect_symbol_set)
             return 0;
 
-        fec_repair(fec_info, fec_r_block, *out_ubuf, out_ubuf_count);
+        if (fec_repair(fec_info, fec_r_block, *out_ubuf, out_ubuf_count) != 0) {
+            FEC_LOGE("fec_repair err");
+            return -4;
+        }
         fec_r_block->parity = 1;
     }
 
