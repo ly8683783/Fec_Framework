@@ -38,7 +38,7 @@ FEC(前向纠错)通过在传输过程中增加冗余数据来提高数据完整
 ### 量化  
 
 本项目与KCP结合后, KCP的重传次数呈明显下降.  
-下图的纵轴代表KCP重传的次数, 网络单向丢包率为20%(C-->S loss 20%; S-->C loss 20%).  
+下图的纵轴代表KCP重传的次数, 横轴代表测试的次数, 网络单向丢包率为20%(C-->S loss 20%; S-->C loss 20%).  
 并设置了不同的k,n值, 每种参数都测试了5次.  
 ![量化图](/doc/image/fec_statistics.png)
 
@@ -99,7 +99,7 @@ fec_framework_encode(fec_info_t *fec_info, struct fec_buf *ubuf, struct fec_buf 
     - 描述: 这是一个由fec_framework_init函数创建的句柄。它包含了FEC编码所需的所有配置和状态信息。
     - 用途: 指导FEC编码过程，包括如何生成冗余数据等。
   - ubuf
-    - 描述: 指向应用层数据（ADU）的指针。这些数据是需要被FEC算法处理的原始数据。
+    - 描述: 指向应用层数据（ADU）的指针。这些数据是需要被FEC算法处理的原始数据. 注意, 如果函数返回0, out_ubuf是一个struct fec_buf数组, 需要调用者释放.
     - 用途: 作为FEC编码的输入，即将被加入FEC头部的数据。
   - out_ubuf
     - 描述: 输出参数. 为ADU添加了FEC头部的FEC packet(FDU)
@@ -130,7 +130,7 @@ fec_framework_decode(fec_info_t *fec_info, struct fec_buf *ubuf, struct fec_buf 
     - 描述: 指向接收到的FEC数据包（FDU）的指针。这些数据包可能是原始数据或由发送端生成的冗余数据。
     - 用途: 作为FEC解码的输入，提供需要解码和重建的数据。
   - out_ubuf
-    - 描述: 输出参数. 为ADU添加了FEC头部的FEC packet(FDU)
+    - 描述: 输出参数. 为ADU添加了FEC头部的FEC packet(FDU). 注意, 如果函数返回0, out_ubuf是一个struct fec_buf数组, 需要调用者释放.
     - 用途：存放编码后的数据，包括原始数据和生成的冗余数据。
   - out_ubuf_count
     - 描述: 输出参数. 表示输出的ADU数量。这个数值指示了成功解码和重建的数据包数量。
