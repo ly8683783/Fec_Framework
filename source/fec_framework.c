@@ -20,6 +20,11 @@ static inline IINT16 fec_diff(IUINT16 later, IUINT16 earlier)
     return ((IINT16)(later - earlier));
 }
 
+static inline IINT32 fec_buf_headroom_len(const struct fec_buf *b)
+{
+    return b->data - b->head;
+}
+
 void rs_encode(void *code, void *data[],IINT32 size, IUINT16 k, IUINT16 n)
 {
 	for(IINT32 i = k; i < n; i++)
@@ -169,15 +174,22 @@ IINT32 fec_du_encode(struct fec_buf *ubuf, IUINT16 group_id, IUINT16 seq_id, IUI
 {
     fec_header_t *fec_header_ptr;
 
-    if (data != NULL && data_len > 0)
-        fec_buf_put_data(ubuf, data, data_len);
+    if (data != NULL && data_len > 0) {
+        if (fec_buf_put_data(ubuf, data, data_len) == NULL)
+            return -1;
+    }
 
     fec_header_ptr = fec_buf_push(ubuf, sizeof(fec_header_t));
+    if (fec_header_ptr == NULL)
+        return -1;
+
     fec_header_ptr->group_id = htons(group_id);
     fec_header_ptr->seq_id = htons(seq_id);
     fec_header_ptr->symbol_id = symbol_id;
     fec_header_ptr->buf_size = htons(data_len);
     fec_header_ptr->buf_type = buf_type;
+
+    return 0;
 }
 
 IINT32
@@ -187,7 +199,6 @@ fec_redundancy_generator(fec_info_t *fec_info, fec_block_t *fec_w_block, struct 
     IINT32 ret = 0;
     IINT32 parity_symbol_index = 0;
     IUINT8 **data;
-    fec_header_t *fec_header_ptr;
 
     data = calloc(1, sizeof(IUINT8 *) * fec_info->n);
     if (data == NULL) {
@@ -225,8 +236,12 @@ fec_redundancy_generator(fec_info_t *fec_info, fec_block_t *fec_w_block, struct 
             FEC_LOGE("fec_buf_init ret %d", ret);
             break;
         }
-        fec_du_encode(&(*out_ubuf)[*out_ubuf_count], fec_w_block->group_id, fec_w_block->seq_id++, parity_symbol_index,
+        ret = fec_du_encode(&(*out_ubuf)[*out_ubuf_count], fec_w_block->group_id, fec_w_block->seq_id++, parity_symbol_index,
                     UKCP_FEC_TYPE_PARITY_PACKET, data[parity_symbol_index], fec_w_block->max_len);
+        if (ret != 0) {
+            fec_buf_free(&(*out_ubuf)[*out_ubuf_count]);
+            break;
+        }
     }
 
 err:
@@ -249,11 +264,19 @@ fec_framework_encode(fec_info_t *fec_info, struct fec_buf *ubuf, struct fec_buf 
     IUINT8 **data;
     IUINT16 fec_buf_len, buf_len;
     fec_adu_info_t *adu_info;
+    IINT32 required_headroom = sizeof(fec_adu_info_t) + sizeof(fec_header_t);
 
     *out_ubuf_count = 0;
+    *out_ubuf = NULL;
     fec_w_block = fec_info->fec_w_block.fec_block_list;
 
     buf_len = fec_buf_length(ubuf);
+    if (fec_buf_headroom_len(ubuf) < required_headroom) {
+        FEC_LOGE("fec_framework_encode headroom %d required %d",
+                fec_buf_headroom_len(ubuf), required_headroom);
+        return -1;
+    }
+
     fec_buf_len = sizeof(fec_adu_info_t) + buf_len;
     if (fec_w_block->max_len < fec_buf_len)
         fec_w_block->max_len = fec_buf_len;
@@ -261,6 +284,8 @@ fec_framework_encode(fec_info_t *fec_info, struct fec_buf *ubuf, struct fec_buf 
     symbol_id = fec_w_block->count++;
 
     adu_info = fec_buf_push(ubuf, sizeof(fec_adu_info_t));
+    if (adu_info == NULL)
+        return -1;
     adu_info->len = htons(buf_len);
 
     fec_w_block->symbol[symbol_id].fec_header.group_id = fec_w_block->group_id;
@@ -271,16 +296,27 @@ fec_framework_encode(fec_info_t *fec_info, struct fec_buf *ubuf, struct fec_buf 
     fec_w_block->symbol[symbol_id].adu_info = calloc(1, fec_buf_length(ubuf));
     memcpy(fec_w_block->symbol[symbol_id].adu_info, fec_buf_data(ubuf), fec_buf_length(ubuf));
 
-    fec_du_encode(ubuf, fec_w_block->group_id, fec_w_block->symbol[symbol_id].fec_header.seq_id, symbol_id,
+    ret = fec_du_encode(ubuf, fec_w_block->group_id, fec_w_block->symbol[symbol_id].fec_header.seq_id, symbol_id,
                 fec_w_block->symbol[symbol_id].fec_header.buf_type, NULL,
                 fec_w_block->symbol[symbol_id].fec_header.buf_size);
+    if (ret != 0) {
+        free(fec_w_block->symbol[symbol_id].adu_info);
+        fec_w_block->symbol[symbol_id].adu_info = NULL;
+        return -1;
+    }
 
     *out_ubuf = calloc(fec_info->n - fec_info->k + 1, sizeof(struct fec_buf));
+    if (*out_ubuf == NULL) {
+        free(fec_w_block->symbol[symbol_id].adu_info);
+        fec_w_block->symbol[symbol_id].adu_info = NULL;
+        return -1;
+    }
     (*out_ubuf)[(*out_ubuf_count)++] = *ubuf;
 
     if ((fec_w_block->count) % fec_info->k == 0) {
         ret = fec_redundancy_generator(fec_info, fec_w_block, out_ubuf, out_ubuf_count);
         fec_w_block->count = 0;
+        fec_w_block->max_len = 0;
         fec_w_block->group_id++;
     }
 
@@ -402,6 +438,23 @@ fec_framework_decode(fec_info_t *fec_info, struct fec_buf *ubuf, struct fec_buf 
     fec_header.buf_size = ntohs(fec_header.buf_size);
     fec_header.group_id = ntohs(fec_header.group_id);
     fec_header.seq_id = ntohs(fec_header.seq_id);
+
+    if (fec_header.buf_type != UKCP_FEC_TYPE_SOURCE_PACKET &&
+            fec_header.buf_type != UKCP_FEC_TYPE_PARITY_PACKET) {
+        FEC_LOGD("R decode err. buf_type %u", fec_header.buf_type);
+        return -1;
+    }
+
+    if (fec_header.buf_size > fec_buf_length(ubuf)) {
+        FEC_LOGD("R decode err. buf_size %hu len %hu", fec_header.buf_size, fec_buf_length(ubuf));
+        return -1;
+    }
+
+    if (fec_header.buf_type == UKCP_FEC_TYPE_SOURCE_PACKET &&
+            fec_header.buf_size < sizeof(fec_adu_info_t)) {
+        FEC_LOGD("R decode err. source buf_size %hu", fec_header.buf_size);
+        return -1;
+    }
 
     if (fec_header.symbol_id >= fec_info->n) {
         FEC_LOGD("R decode err. symbol_id %u out of range %u", fec_header.symbol_id, fec_info->n);
